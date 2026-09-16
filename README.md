@@ -3,22 +3,21 @@
 A hands-on Security Operations Center (SOC) lab built from scratch to practice detection engineering and incident analysis.
 
 ## Architecture
-┌─────────────────────┐ ┌─────────────────────┐
-│ Windows Server │ │ Parrot OS │
-│ 2019 (Victim VM) │ │ (Analyst Host) │
-│ │ │ │
-│ ┌───────────────┐ │ │ ┌───────────────┐ │
-│ │ Sysmon │ │ │ │ Splunk │ │
-│ │ (Endpoint │ │ │ │ Enterprise │ │
-│ │ telemetry) │ │ │ │ (SIEM) │ │
-│ └───────┬───────┘ │ │ └───────▲───────┘ │
-│ │ │ │ │ │
-│ ┌───────▼───────┐ │ TCP │ │ │
-│ │ Splunk UF │──┼─9997───▶│──────────┘ │
-│ │ (Forwarder) │ │ │ │
-│ └───────────────┘ │ │ │
-└─────────────────────┘ └─────────────────────┘
-
++---------------------+         +---------------------+
+|  Windows Server     |         |  Parrot OS          |
+|  2019 (Victim VM)   |         |  (Analyst Host)     |
+|                     |         |                     |
+|  +---------------+  |         |  +---------------+  |
+|  |   Sysmon      |  |         |  |   Splunk      |  |
+|  |  (Endpoint    |  |         |  |  Enterprise   |  |
+|  |   telemetry)  |  |         |  |   (SIEM)      |  |
+|  +-------+-------+  |         |  +-------^-------+  |
+|          |          |         |          |          |
+|  +-------v-------+  |  TCP    |          |          |
+|  |   Splunk UF   |--+--9997-->+----------+          |
+|  |  (Forwarder)  |  |         |                     |
+|  +---------------+  |         |                     |
++---------------------+         +---------------------+
 
 ## What This Lab Does
 
