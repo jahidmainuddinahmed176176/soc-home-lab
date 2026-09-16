@@ -1,0 +1,117 @@
+# ============================================================
+# SOC Home Lab - Splunk SPL Queries
+# ============================================================
+
+# ------------------------------------------------------------
+# 1. VERIFY LOG INGESTION
+# ------------------------------------------------------------
+# Confirm Sysmon events are flowing from Windows to Splunk
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+| stats count by host, source, sourcetype
+
+
+# ------------------------------------------------------------
+# 2. FILTER NOISE - EXCLUDE FORWARDER'S OWN ACTIVITY
+# ------------------------------------------------------------
+# The Splunk Forwarder creates its own events. Filter them out.
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+NOT Image="*SplunkUniversalForwarder*"
+
+
+# ------------------------------------------------------------
+# 3. DETECT ENCODED POWERSHELL (T1059.001)
+# ------------------------------------------------------------
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+EventID=1
+Image="*\\powershell.exe"
+CommandLine="*-EncodedCommand*"
+| table _time, host, User, Image, CommandLine, ParentImage, ParentCommandLine
+
+
+# ------------------------------------------------------------
+# 4. FIND ALL PROCESS CREATION EVENTS (Event ID 1)
+# ------------------------------------------------------------
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+EventID=1
+NOT Image="*SplunkUniversalForwarder*"
+| table _time, host, User, Image, CommandLine, ParentImage
+
+
+# ------------------------------------------------------------
+# 5. DETECT RECON COMMANDS (T1082, T1033, T1016, T1087)
+# ------------------------------------------------------------
+# Attackers commonly run these to learn about the target system
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+EventID=1
+Image IN ("*\\whoami.exe", "*\\net.exe", "*\\net1.exe", "*\\ipconfig.exe", "*\\systeminfo.exe", "*\\hostname.exe", "*\\quser.exe")
+NOT User="NT AUTHORITY\\SYSTEM"
+| table _time, host, User, Image, CommandLine
+
+
+# ------------------------------------------------------------
+# 6. DETECT NETWORK CONNECTIONS TO OUTSIDE (Event ID 3)
+# ------------------------------------------------------------
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+EventID=3
+NOT Image="*SplunkUniversalForwarder*"
+| table _time, host, Image, SourceIp, DestinationIp, DestinationPort
+
+
+# ------------------------------------------------------------
+# 7. DETECT DNS QUERIES (Event ID 22) - C2 LOOKUPS
+# ------------------------------------------------------------
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+EventID=22
+NOT Image="*SplunkUniversalForwarder*"
+| table _time, host, Image, QueryName, QueryStatus
+
+
+# ------------------------------------------------------------
+# 8. DETECT FILE CREATION IN SUSPICIOUS LOCATIONS (Event ID 11)
+# ------------------------------------------------------------
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+EventID=11
+TargetFilename IN ("*\\Temp\\*", "*\\AppData\\Local\\Temp\\*", "*\\Downloads\\*.exe", "*\\Users\\Public\\*")
+NOT Image="*SplunkUniversalForwarder*"
+| table _time, host, Image, TargetFilename
+
+
+# ------------------------------------------------------------
+# 9. DETECT SCRIPTS LAUNCHED BY OFFICE (T1204.002)
+# ------------------------------------------------------------
+# Microsoft Office spawning cmd.exe or powershell.exe = macro attack
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+EventID=1
+ParentImage IN ("*\\WINWORD.EXE", "*\\EXCEL.EXE", "*\\POWERPNT.EXE", "*\\OUTLOOK.EXE")
+Image IN ("*\\cmd.exe", "*\\powershell.exe", "*\\wscript.exe", "*\\cscript.exe", "*\\mshta.exe")
+| table _time, host, User, ParentImage, Image, CommandLine
+
+
+# ------------------------------------------------------------
+# 10. DETECT SCHEDULED TASK CREATION (T1053.005)
+# ------------------------------------------------------------
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+EventID=1
+Image="*\\schtasks.exe"
+CommandLine="*/create*"
+NOT Image="*SplunkUniversalForwarder*"
+| table _time, host, User, Image, CommandLine, ParentImage
+
+
+# ------------------------------------------------------------
+# 11. SUMMARY - TOP PROCESSES BY FREQUENCY
+# ------------------------------------------------------------
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+EventID=1
+NOT Image="*SplunkUniversalForwarder*"
+| stats count by Image
+| sort -count
+| head 20
+
+
+# ------------------------------------------------------------
+# 12. TIMELINE - EVENT FREQUENCY BY HOUR
+# ------------------------------------------------------------
+index=main sourcetype=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+NOT Image="*SplunkUniversalForwarder*"
+| timechart span=1h count by EventID
